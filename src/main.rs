@@ -2,7 +2,7 @@ mod ui;
 
 use eframe::egui;
 
-use crate::ui::FrostFile;
+use crate::ui::Zora;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -13,6 +13,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Frost File",
         options,
-        Box::new(|_| Ok(Box::<FrostFile>::default())),
+        Box::new(|_| Ok(Box::<Zora>::default())),
     )
 }
