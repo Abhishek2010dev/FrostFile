@@ -1,3 +1,4 @@
+mod scan;
 mod ui;
 
 use eframe::egui;
