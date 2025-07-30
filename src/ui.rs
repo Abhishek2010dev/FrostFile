@@ -28,6 +28,9 @@ pub struct Zora {
     scanning: bool,
     selected_dir: Option<PathBuf>,
     finished: Arc<Mutex<bool>>,
+    infected_found: Arc<Mutex<bool>>,
+    infected_paths: Arc<Mutex<Vec<PathBuf>>>,
+    show_alert: bool,
 }
 
 impl eframe::App for Zora {
@@ -43,6 +46,23 @@ impl eframe::App for Zora {
                 self.reset_scan_state();
                 self.page_state = PageState::Home;
             }
+        }
+
+        if self.show_alert {
+            egui::Window::new("⚠️ Infected Files Detected")
+                .collapsible(false)
+                .resizable(false)
+                .fixed_size(Vec2::new(400.0, 200.0))
+                .show(ctx, |ui| {
+                    ui.label("One or more infected files were found during the scan.");
+                    ui.add_space(10.0);
+                    ui.label("Please review the logs for details.");
+                    ui.add_space(20.0);
+
+                    if ui.button("OK").clicked() {
+                        self.show_alert = false;
+                    }
+                });
         }
 
         // Top navigation panel
@@ -86,6 +106,9 @@ impl Zora {
         self.scanning = false;
         *self.process.lock().unwrap() = 0.0;
         *self.finished.lock().unwrap() = false;
+        *self.infected_found.lock().unwrap() = false;
+        self.infected_paths.lock().unwrap().clear();
+        self.show_alert = false;
     }
 
     fn home_ui(&mut self, ui: &mut egui::Ui) {
@@ -198,8 +221,6 @@ impl Zora {
             .enable_regex(true)
             .enable_search(true)
             .max_log_length(2000)
-            .enable_category("hello", true)
-            .enable_category("egui_glow::painter", true)
             .show(ui);
     }
 
@@ -207,6 +228,8 @@ impl Zora {
         self.scanning = true;
         let progres = Arc::clone(&self.process);
         let finished = Arc::clone(&self.finished);
+        let infected_found = Arc::clone(&self.infected_found);
+        let infected_paths = Arc::clone(&self.infected_paths);
 
         std::thread::spawn(move || {
             let entries: Vec<_> = WalkDir::new(&dir)
@@ -225,7 +248,9 @@ impl Zora {
                         log::info!("Clean: {}", path_buf.display())
                     }
                     crate::scan::ScanResult::Infected(path_buf) => {
-                        log::warn!("Infected: {}", path_buf.display())
+                        log::warn!("Infected: {}", path_buf.display());
+                        *infected_found.lock().unwrap() = true;
+                        infected_paths.lock().unwrap().push(path_buf);
                     }
                     crate::scan::ScanResult::Error(path_buf, err) => {
                         log::error!("Error: {}: {}", path_buf.display(), err)

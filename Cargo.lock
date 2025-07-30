@@ -1173,19 +1173,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "frost-file"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "egui_logger",
- "log",
- "rayon",
- "rfd",
- "sha2",
- "walkdir",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4070,6 +4057,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "zora"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui_logger",
+ "log",
+ "rayon",
+ "rfd",
+ "sha2",
+ "walkdir",
 ]
 
 [[package]]
