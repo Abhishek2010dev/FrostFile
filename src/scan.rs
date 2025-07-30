@@ -1,4 +1,10 @@
-use std::{collections::HashSet, fs::File, io::Read, path::Path, sync::LazyLock};
+use std::{
+    collections::HashSet,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 use sha2::{Digest, Sha256};
 
@@ -10,32 +16,33 @@ static MALWARE_HASHES: LazyLock<HashSet<String>> = LazyLock::new(|| {
 });
 
 #[derive(Debug)]
-pub enum ScanResult<'a> {
-    Clean,
-    Infected { file_path: &'a Path },
-    Error(String),
+pub enum ScanResult {
+    Clean(PathBuf),
+    Infected(PathBuf),
+    Error(PathBuf, String),
 }
 
 pub fn scan_file(path: &Path) -> ScanResult {
     let mut file = match File::open(path) {
-        Ok(t) => t,
-        Err(err) => return ScanResult::Error(format!("Failed to open file: {err}")),
+        Ok(f) => f,
+        Err(e) => return ScanResult::Error(path.to_path_buf(), e.to_string()),
     };
 
     let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 8192]; // 8KB
+    let mut buffer = [0u8; 8192];
 
     loop {
         match file.read(&mut buffer) {
             Ok(0) => break,
             Ok(n) => hasher.update(&buffer[..n]),
-            Err(err) => return ScanResult::Error(format!("Failed to read file: {err}")),
+            Err(e) => return ScanResult::Error(path.to_path_buf(), e.to_string()),
         }
     }
 
-    let hash_hex = format!("{:x}", hasher.finalize());
-    if MALWARE_HASHES.contains(&hash_hex) {
-        return ScanResult::Infected { file_path: path };
+    let hash = format!("{:x}", hasher.finalize());
+    if MALWARE_HASHES.contains(&hash) {
+        ScanResult::Infected(path.to_path_buf())
+    } else {
+        ScanResult::Clean(path.to_path_buf())
     }
-    ScanResult::Clean
 }

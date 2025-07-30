@@ -1,4 +1,16 @@
-use eframe::egui::{self, Align, Color32, FontId, Layout, RichText, Stroke, Vec2};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
+
+use eframe::egui::{self, Align, Color32, FontId, Layout, ProgressBar, RichText, Stroke, Vec2};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use walkdir::WalkDir;
+
+use crate::scan::scan_file;
 
 #[derive(Default, PartialEq)]
 enum PageState {
@@ -10,11 +22,30 @@ enum PageState {
 
 #[derive(Default)]
 pub struct Zora {
+    progress: f32,
+    process: Arc<Mutex<f32>>,
     page_state: PageState,
+    scanning: bool,
+    selected_dir: Option<PathBuf>,
+    finished: Arc<Mutex<bool>>,
 }
 
 impl eframe::App for Zora {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        // Handle auto folder picker when entering ScanDir
+        if self.page_state == PageState::ScanDir && self.selected_dir.is_none() && !self.scanning {
+            if let Some(dir) = rfd::FileDialog::new().pick_folder() {
+                self.selected_dir = Some(dir.clone());
+                self.reset_scan_state();
+                self.scanning = true;
+                self.start_scan(ctx.clone(), dir);
+            } else {
+                self.reset_scan_state();
+                self.page_state = PageState::Home;
+            }
+        }
+
+        // Top navigation panel
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
@@ -22,17 +53,20 @@ impl eframe::App for Zora {
                 if self.page_state != PageState::Home
                     && ui.button(RichText::new("⬅ Back").strong()).clicked()
                 {
+                    self.reset_scan_state();
                     self.page_state = PageState::Home;
                 }
             });
         });
 
+        // Central content panel
         egui::CentralPanel::default().show(ctx, |ui| match self.page_state {
             PageState::Home => self.home_ui(ui),
             PageState::ScanFile => self.scan_file_ui(ui),
             PageState::ScanDir => self.scan_dir_ui(ui),
         });
 
+        // Bottom footer panel
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.hyperlink_to(
@@ -47,6 +81,13 @@ impl eframe::App for Zora {
 }
 
 impl Zora {
+    fn reset_scan_state(&mut self) {
+        self.selected_dir = None;
+        self.scanning = false;
+        *self.process.lock().unwrap() = 0.0;
+        *self.finished.lock().unwrap() = false;
+    }
+
     fn home_ui(&mut self, ui: &mut egui::Ui) {
         ui.with_layout(Layout::top_down(Align::Center), |ui| {
             ui.add_space(60.0);
@@ -74,8 +115,7 @@ impl Zora {
                     )
                     .fill(Color32::from_rgb(80, 130, 250))
                     .min_size(Vec2::new(220.0, 50.0))
-                    .corner_radius(12.0)
-                    .stroke(Stroke::new(1.5, Color32::BLACK)),
+                    .corner_radius(12.0),
                 )
                 .clicked()
             {
@@ -104,15 +144,103 @@ impl Zora {
     }
 
     fn scan_file_ui(&mut self, ui: &mut egui::Ui) {
-        ui.centered_and_justified(|ui| {
-            ui.label(RichText::new("📄 File Scan Screen").heading().strong());
-        });
+        // ui.with_layout(Layout::top_down(Align::Center), |ui| {
+        //     ui.add_space(40.0);
+        //
+        //     ui.label(
+        //         RichText::new("📄 File Scan")
+        //             .heading()
+        //             .color(Color32::WHITE),
+        //     );
+        //     ui.add_space(20.0);
+        //
+        //     if ui
+        //         .add(
+        //             egui::Button::new(RichText::new("Select a File").color(Color32::WHITE))
+        //                 .fill(Color32::from_rgb(120, 150, 250))
+        //                 .min_size(Vec2::new(200.0, 40.0))
+        //                 .corner_radius(10.0),
+        //         )
+        //         .clicked()
+        //     {
+        //         if let Some(file) = rfd::FileDialog::new().pick_file() {
+        //             match crate::scan::scan_file(&file) {
+        //                 crate::scan::ScanResult::Clean(path) => {
+        //                     log::info!("Clean: {}", path.display());
+        //                 }
+        //                 crate::scan::ScanResult::Infected(path) => {
+        //                     log::warn!("Infected: {}", path.display());
+        //                 }
+        //                 crate::scan::ScanResult::Error(path, err) => {
+        //                     log::error!("Error scanning {}: {}", path.display(), err);
+        //                 }
+        //             }
+        //         }
+        //     }
+        //
+        //     ui.add_space(30.0);
+        //
+        //     egui_logger::LoggerUi::default()
+        //         .enable_regex(true)
+        //         .enable_search(true)
+        //         .max_log_length(2000)
+        //         .enable_category("scan", true)
+        //         .enable_category("egui_glow::painter", true)
+        //         .show(ui);
+        // });
     }
 
     fn scan_dir_ui(&mut self, ui: &mut egui::Ui) {
-        ui.centered_and_justified(|ui| {
-            ui.label(RichText::new("📁 Directory Scan Screen").heading().strong());
+        let progress = *self.process.lock().unwrap();
+        self.progress = progress;
+        ui.add(ProgressBar::new(progress).text(format!("{:.0}%", progress * 100.0)));
+        egui_logger::LoggerUi::default()
+            .enable_regex(true)
+            .enable_search(true)
+            .max_log_length(2000)
+            .enable_category("hello", true)
+            .enable_category("egui_glow::painter", true)
+            .show(ui);
+    }
+
+    fn start_scan(&mut self, ctx: egui::Context, dir: PathBuf) {
+        self.scanning = true;
+        let progres = Arc::clone(&self.process);
+        let finished = Arc::clone(&self.finished);
+
+        std::thread::spawn(move || {
+            let entries: Vec<_> = WalkDir::new(&dir)
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(|e| e.file_type().is_file())
+                .map(|e| e.into_path())
+                .collect();
+
+            let total = entries.len().max(1);
+            let done = AtomicUsize::new(0);
+
+            entries.into_par_iter().for_each(|path| {
+                match scan_file(&path) {
+                    crate::scan::ScanResult::Clean(path_buf) => {
+                        log::info!("Clean: {}", path_buf.display())
+                    }
+                    crate::scan::ScanResult::Infected(path_buf) => {
+                        log::warn!("Infected: {}", path_buf.display())
+                    }
+                    crate::scan::ScanResult::Error(path_buf, err) => {
+                        log::error!("Error: {}: {}", path_buf.display(), err)
+                    }
+                }
+
+                done.fetch_add(1, Ordering::Relaxed);
+                let done_value = done.load(Ordering::Relaxed);
+                *progres.lock().unwrap() = (done_value as f32) / (total as f32);
+                ctx.request_repaint();
+            });
+
+            log::info!("Directory scan complete");
+            *finished.lock().unwrap() = true;
+            ctx.request_repaint();
         });
     }
 }
-

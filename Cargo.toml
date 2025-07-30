@@ -5,8 +5,12 @@ edition = "2024"
 
 [dependencies]
 eframe = "0.32.0"
+egui_logger = "0.8.0"
+log = "0.4.27"
+rayon = "1.10.0"
 rfd = "0.15.4"
 sha2 = "0.10.9"
+walkdir = "2.5.0"
 
 [profile.dev]
 opt-level = 0
