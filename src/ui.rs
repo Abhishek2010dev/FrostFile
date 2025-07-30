@@ -35,7 +35,6 @@ pub struct Zora {
 
 impl eframe::App for Zora {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        // Handle auto folder picker when entering ScanDir
         if self.page_state == PageState::ScanDir && self.selected_dir.is_none() && !self.scanning {
             if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                 self.selected_dir = Some(dir.clone());
@@ -65,7 +64,6 @@ impl eframe::App for Zora {
                 });
         }
 
-        // Top navigation panel
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
@@ -79,7 +77,6 @@ impl eframe::App for Zora {
             });
         });
 
-        // Central content panel
         egui::CentralPanel::default().show(ctx, |ui| match self.page_state {
             PageState::Home => self.home_ui(ui),
             PageState::ScanFile => self.scan_file_ui(ui),

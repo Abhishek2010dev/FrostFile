@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 static MALWARE_HASHES: LazyLock<HashSet<String>> = LazyLock::new(|| {
     include_str!("../full-hash-sha256-aa.txt")
         .lines()
-        .map(|line| line.to_string())
+        .map(|line| line.trim().to_ascii_lowercase())
         .collect()
 });
 
@@ -39,7 +39,7 @@ pub fn scan_file(path: &Path) -> ScanResult {
         }
     }
 
-    let hash = format!("{:x}", hasher.finalize());
+    let hash = format!("{:x}", hasher.finalize()).to_ascii_lowercase();
     if MALWARE_HASHES.contains(&hash) {
         ScanResult::Infected(path.to_path_buf())
     } else {
