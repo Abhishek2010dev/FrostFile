@@ -144,50 +144,50 @@ impl Zora {
     }
 
     fn scan_file_ui(&mut self, ui: &mut egui::Ui) {
-        // ui.with_layout(Layout::top_down(Align::Center), |ui| {
-        //     ui.add_space(40.0);
-        //
-        //     ui.label(
-        //         RichText::new("📄 File Scan")
-        //             .heading()
-        //             .color(Color32::WHITE),
-        //     );
-        //     ui.add_space(20.0);
-        //
-        //     if ui
-        //         .add(
-        //             egui::Button::new(RichText::new("Select a File").color(Color32::WHITE))
-        //                 .fill(Color32::from_rgb(120, 150, 250))
-        //                 .min_size(Vec2::new(200.0, 40.0))
-        //                 .corner_radius(10.0),
-        //         )
-        //         .clicked()
-        //     {
-        //         if let Some(file) = rfd::FileDialog::new().pick_file() {
-        //             match crate::scan::scan_file(&file) {
-        //                 crate::scan::ScanResult::Clean(path) => {
-        //                     log::info!("Clean: {}", path.display());
-        //                 }
-        //                 crate::scan::ScanResult::Infected(path) => {
-        //                     log::warn!("Infected: {}", path.display());
-        //                 }
-        //                 crate::scan::ScanResult::Error(path, err) => {
-        //                     log::error!("Error scanning {}: {}", path.display(), err);
-        //                 }
-        //             }
-        //         }
-        //     }
-        //
-        //     ui.add_space(30.0);
-        //
-        //     egui_logger::LoggerUi::default()
-        //         .enable_regex(true)
-        //         .enable_search(true)
-        //         .max_log_length(2000)
-        //         .enable_category("scan", true)
-        //         .enable_category("egui_glow::painter", true)
-        //         .show(ui);
-        // });
+        ui.with_layout(Layout::top_down(Align::Center), |ui| {
+            ui.add_space(40.0);
+
+            ui.label(
+                RichText::new("📄 File Scan")
+                    .heading()
+                    .color(Color32::WHITE),
+            );
+            ui.add_space(20.0);
+
+            if ui
+                .add(
+                    egui::Button::new(RichText::new("Select a File").color(Color32::WHITE))
+                        .fill(Color32::from_rgb(120, 150, 250))
+                        .min_size(Vec2::new(200.0, 40.0))
+                        .corner_radius(10.0),
+                )
+                .clicked()
+            {
+                if let Some(file) = rfd::FileDialog::new().pick_file() {
+                    match crate::scan::scan_file(&file) {
+                        crate::scan::ScanResult::Clean(path) => {
+                            log::info!("Clean: {}", path.display());
+                        }
+                        crate::scan::ScanResult::Infected(path) => {
+                            log::warn!("Infected: {}", path.display());
+                        }
+                        crate::scan::ScanResult::Error(path, err) => {
+                            log::error!("Error scanning {}: {}", path.display(), err);
+                        }
+                    }
+                }
+            }
+
+            ui.add_space(30.0);
+
+            egui_logger::LoggerUi::default()
+                .enable_regex(true)
+                .enable_search(true)
+                .max_log_length(2000)
+                .enable_category("scan", true)
+                .enable_category("egui_glow::painter", true)
+                .show(ui);
+        });
     }
 
     fn scan_dir_ui(&mut self, ui: &mut egui::Ui) {
